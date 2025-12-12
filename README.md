@@ -1,6 +1,6 @@
 # Welcome to your Lovable project
 
-## Acient greek learning up made using prompts and lovable
+Acient greek learning up made using prompts and lovable
 
 **URL**:
 
