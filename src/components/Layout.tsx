@@ -1,5 +1,14 @@
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { 
   LayoutDashboard, 
   BookOpen, 
@@ -7,11 +16,13 @@ import {
   FolderOpen, 
   History, 
   Settings,
-  GraduationCap
+  GraduationCap,
+  User,
+  LogOut
 } from 'lucide-react';
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Study Activities', href: '/activities', icon: BookOpen },
   { name: 'Words', href: '/words', icon: Library },
   { name: 'Groups', href: '/groups', icon: FolderOpen },
@@ -26,13 +37,18 @@ interface LayoutProps {
 
 export default function Layout({ children, breadcrumbs }: LayoutProps) {
   const location = useLocation();
+  const { profile, signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+  };
 
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
       <header className="sticky top-0 z-50 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
         <div className="container flex h-16 items-center justify-between">
-          <Link to="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
+          <Link to="/dashboard" className="flex items-center gap-3 transition-opacity hover:opacity-80">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
               <GraduationCap className="h-6 w-6 text-primary-foreground" />
             </div>
@@ -42,7 +58,7 @@ export default function Layout({ children, breadcrumbs }: LayoutProps) {
           <nav className="flex items-center gap-1">
             {navigation.map((item) => {
               const isActive = location.pathname === item.href || 
-                (item.href !== '/' && location.pathname.startsWith(item.href));
+                (item.href !== '/dashboard' && location.pathname.startsWith(item.href));
               
               return (
                 <Link
@@ -60,6 +76,38 @@ export default function Layout({ children, breadcrumbs }: LayoutProps) {
                 </Link>
               );
             })}
+
+            {/* User Menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="ml-2 gap-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10">
+                    <User className="h-4 w-4 text-primary" />
+                  </div>
+                  <span className="max-w-[100px] truncate text-sm font-medium">
+                    {profile?.username || 'User'}
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <div className="px-2 py-1.5">
+                  <p className="text-sm font-medium">{profile?.username}</p>
+                  <p className="text-xs text-muted-foreground">Learner</p>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to="/settings" className="cursor-pointer">
+                    <Settings className="mr-2 h-4 w-4" />
+                    Settings
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-destructive">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </nav>
         </div>
       </header>

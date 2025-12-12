@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Layout from '@/components/Layout';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -11,46 +11,52 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { sessions } from '@/lib/mockData';
+import { getUserSessions, StudySession } from '@/lib/studyService';
 import { ArrowUpDown, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
-type SortField = 'startTime' | 'activityName' | 'correctCount' | 'wrongCount' | 'duration';
+type SortField = 'started_at' | 'activity_name' | 'correct_count' | 'wrong_count';
 type SortDirection = 'asc' | 'desc';
 
 const ITEMS_PER_PAGE = 10;
 
 export default function Sessions() {
-  const [sortField, setSortField] = useState<SortField>('startTime');
+  const [sessions, setSessions] = useState<StudySession[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sortField, setSortField] = useState<SortField>('started_at');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    const fetchSessions = async () => {
+      const data = await getUserSessions();
+      setSessions(data);
+      setLoading(false);
+    };
+    fetchSessions();
+  }, []);
 
   const sortedSessions = useMemo(() => {
     return [...sessions].sort((a, b) => {
       let comparison = 0;
       switch (sortField) {
-        case 'startTime':
-          comparison = a.startTime.getTime() - b.startTime.getTime();
+        case 'started_at':
+          comparison = new Date(a.started_at).getTime() - new Date(b.started_at).getTime();
           break;
-        case 'activityName':
-          comparison = a.activityName.localeCompare(b.activityName);
+        case 'activity_name':
+          comparison = a.activity_name.localeCompare(b.activity_name);
           break;
-        case 'correctCount':
-          comparison = a.correctCount - b.correctCount;
+        case 'correct_count':
+          comparison = a.correct_count - b.correct_count;
           break;
-        case 'wrongCount':
-          comparison = a.wrongCount - b.wrongCount;
-          break;
-        case 'duration':
-          const durationA = a.endTime.getTime() - a.startTime.getTime();
-          const durationB = b.endTime.getTime() - b.startTime.getTime();
-          comparison = durationA - durationB;
+        case 'wrong_count':
+          comparison = a.wrong_count - b.wrong_count;
           break;
       }
       return sortDirection === 'asc' ? comparison : -comparison;
     });
-  }, [sortField, sortDirection]);
+  }, [sessions, sortField, sortDirection]);
 
   const totalPages = Math.ceil(sortedSessions.length / ITEMS_PER_PAGE);
   const paginatedSessions = sortedSessions.slice(
@@ -65,12 +71,6 @@ export default function Sessions() {
       setSortField(field);
       setSortDirection('desc');
     }
-  };
-
-  const formatDuration = (start: Date, end: Date) => {
-    const diff = end.getTime() - start.getTime();
-    const minutes = Math.floor(diff / 60000);
-    return `${minutes} min`;
   };
 
   const getAccuracy = (correct: number, wrong: number) => {
@@ -95,6 +95,16 @@ export default function Sessions() {
     </TableHead>
   );
 
+  if (loading) {
+    return (
+      <Layout breadcrumbs={[{ name: 'Sessions' }]}>
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">Loading sessions...</p>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout breadcrumbs={[{ name: 'Sessions' }]}>
       <div className="space-y-6 animate-fade-in">
@@ -105,112 +115,132 @@ export default function Sessions() {
           </p>
         </div>
 
-        <div className="rounded-lg border border-border bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <SortHeader field="startTime">Date</SortHeader>
-                <SortHeader field="activityName">Activity</SortHeader>
-                <TableHead>Group</TableHead>
-                <SortHeader field="duration">Duration</SortHeader>
-                <SortHeader field="correctCount">Correct</SortHeader>
-                <SortHeader field="wrongCount">Wrong</SortHeader>
-                <TableHead>Accuracy</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedSessions.map((session) => {
-                const accuracy = getAccuracy(session.correctCount, session.wrongCount);
-                return (
-                  <TableRow key={session.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <p className="font-medium">
-                            {format(session.startTime, 'MMM d, yyyy')}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {format(session.startTime, 'h:mm a')}
-                          </p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Link 
-                        to={`/activities/${session.activityId}`}
-                        className="font-medium text-foreground hover:text-primary transition-colors"
-                      >
-                        {session.activityName}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      {session.groupName ? (
-                        <Link 
-                          to={`/groups/${session.groupId}`}
-                          className="text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          {session.groupName}
-                        </Link>
-                      ) : (
-                        <span className="text-muted-foreground">All words</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {formatDuration(session.startTime, session.endTime)}
-                    </TableCell>
-                    <TableCell className="text-success font-medium">
-                      {session.correctCount}
-                    </TableCell>
-                    <TableCell className="text-destructive font-medium">
-                      {session.wrongCount}
-                    </TableCell>
-                    <TableCell>
-                      <Badge 
-                        variant={accuracy >= 80 ? 'default' : accuracy >= 60 ? 'secondary' : 'destructive'}
-                        className={cn(
-                          accuracy >= 80 && 'bg-success hover:bg-success/90'
-                        )}
-                      >
-                        {accuracy}%
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to{' '}
-              {Math.min(currentPage * ITEMS_PER_PAGE, sortedSessions.length)} of{' '}
-              {sortedSessions.length} sessions
-            </p>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(prev => prev - 1)}
-                disabled={currentPage === 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Previous
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(prev => prev + 1)}
-                disabled={currentPage === totalPages}
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
+        {sessions.length === 0 ? (
+          <div className="text-center py-12 border border-dashed border-border rounded-lg">
+            <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-foreground mb-2">No sessions yet</h3>
+            <p className="text-muted-foreground mb-4">Start studying to see your progress here.</p>
+            <Link to="/activities">
+              <Button>Start Studying</Button>
+            </Link>
           </div>
+        ) : (
+          <>
+            <div className="rounded-lg border border-border bg-card">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <SortHeader field="started_at">Date</SortHeader>
+                    <SortHeader field="activity_name">Activity</SortHeader>
+                    <TableHead>Group</TableHead>
+                    <SortHeader field="correct_count">Correct</SortHeader>
+                    <SortHeader field="wrong_count">Wrong</SortHeader>
+                    <TableHead>Accuracy</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginatedSessions.map((session) => {
+                    const accuracy = getAccuracy(session.correct_count, session.wrong_count);
+                    const isCompleted = !!session.completed_at;
+                    return (
+                      <TableRow key={session.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <p className="font-medium">
+                                {format(new Date(session.started_at), 'MMM d, yyyy')}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {format(new Date(session.started_at), 'h:mm a')}
+                              </p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Link 
+                            to={`/activities/${session.activity_type}`}
+                            className="font-medium text-foreground hover:text-primary transition-colors"
+                          >
+                            {session.activity_name}
+                          </Link>
+                        </TableCell>
+                        <TableCell>
+                          {session.group_name ? (
+                            <Link 
+                              to={`/groups/${session.group_id}`}
+                              className="text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                              {session.group_name}
+                            </Link>
+                          ) : (
+                            <span className="text-muted-foreground">All words</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-success font-medium">
+                          {session.correct_count}
+                        </TableCell>
+                        <TableCell className="text-destructive font-medium">
+                          {session.wrong_count}
+                        </TableCell>
+                        <TableCell>
+                          {isCompleted ? (
+                            <Badge 
+                              variant={accuracy >= 80 ? 'default' : accuracy >= 60 ? 'secondary' : 'destructive'}
+                              className={cn(
+                                accuracy >= 80 && 'bg-success hover:bg-success/90'
+                              )}
+                            >
+                              {accuracy}%
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={isCompleted ? 'default' : 'secondary'}>
+                            {isCompleted ? 'Completed' : 'In Progress'}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to{' '}
+                  {Math.min(currentPage * ITEMS_PER_PAGE, sortedSessions.length)} of{' '}
+                  {sortedSessions.length} sessions
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => prev - 1)}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => prev + 1)}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </Layout>

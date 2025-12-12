@@ -6,9 +6,9 @@ export interface Word {
   transliteration: string;
   english: string;
   partOfSpeech: 'noun' | 'verb' | 'adjective' | 'adverb' | 'preposition' | 'conjunction' | 'particle';
+  groupIds: string[];
   correctCount: number;
   wrongCount: number;
-  groupIds: string[];
 }
 
 export interface WordGroup {
@@ -23,19 +23,7 @@ export interface StudyActivity {
   name: string;
   description: string;
   icon: string;
-  type: 'flashcard' | 'quiz' | 'typing';
-}
-
-export interface Session {
-  id: string;
-  activityId: string;
-  activityName: string;
-  groupId: string | null;
-  groupName: string | null;
-  startTime: Date;
-  endTime: Date;
-  correctCount: number;
-  wrongCount: number;
+  type: 'flashcard' | 'quiz' | 'typing' | 'matching' | 'listening' | 'spelling';
 }
 
 export const studyActivities: StudyActivity[] = [
@@ -59,6 +47,27 @@ export const studyActivities: StudyActivity[] = [
     description: 'Type the Greek word from its English meaning',
     icon: 'Keyboard',
     type: 'typing'
+  },
+  {
+    id: 'matching',
+    name: 'Word Matching',
+    description: 'Match Greek words with their English translations',
+    icon: 'Link2',
+    type: 'matching'
+  },
+  {
+    id: 'listening',
+    name: 'Audio Recognition',
+    description: 'Listen to pronunciation and identify the word',
+    icon: 'Headphones',
+    type: 'listening'
+  },
+  {
+    id: 'spelling',
+    name: 'Spelling Bee',
+    description: 'Spell Greek words from their transliteration',
+    icon: 'PenTool',
+    type: 'spelling'
   }
 ];
 
@@ -66,38 +75,42 @@ export const wordGroups: WordGroup[] = [
   { id: 'philosophy', name: 'Philosophy Terms', description: 'Words from Plato and Aristotle', wordCount: 15 },
   { id: 'common', name: 'Common Words', description: 'Most frequently used vocabulary', wordCount: 25 },
   { id: 'verbs', name: 'Essential Verbs', description: 'Key verbs for reading texts', wordCount: 20 },
-  { id: 'homer', name: 'Homeric Greek', description: 'Vocabulary from the Iliad and Odyssey', wordCount: 18 }
+  { id: 'homer', name: 'Homeric Greek', description: 'Vocabulary from the Iliad and Odyssey', wordCount: 18 },
+  { id: 'numbers', name: 'Numbers & Time', description: 'Counting and temporal expressions', wordCount: 12 },
+  { id: 'nature', name: 'Nature & Elements', description: 'Earth, sky, water, and natural phenomena', wordCount: 14 }
 ];
 
 export const words: Word[] = [
-  { id: '1', greek: 'λόγος', transliteration: 'logos', english: 'word, reason, speech', partOfSpeech: 'noun', correctCount: 12, wrongCount: 2, groupIds: ['philosophy', 'common'] },
-  { id: '2', greek: 'ψυχή', transliteration: 'psychē', english: 'soul, spirit, life', partOfSpeech: 'noun', correctCount: 8, wrongCount: 3, groupIds: ['philosophy'] },
-  { id: '3', greek: 'ἀρετή', transliteration: 'aretē', english: 'virtue, excellence', partOfSpeech: 'noun', correctCount: 15, wrongCount: 1, groupIds: ['philosophy'] },
-  { id: '4', greek: 'σοφία', transliteration: 'sophia', english: 'wisdom', partOfSpeech: 'noun', correctCount: 20, wrongCount: 0, groupIds: ['philosophy', 'common'] },
-  { id: '5', greek: 'ἀλήθεια', transliteration: 'alētheia', english: 'truth', partOfSpeech: 'noun', correctCount: 7, wrongCount: 4, groupIds: ['philosophy'] },
-  { id: '6', greek: 'εἶναι', transliteration: 'einai', english: 'to be', partOfSpeech: 'verb', correctCount: 25, wrongCount: 2, groupIds: ['verbs', 'common'] },
-  { id: '7', greek: 'λέγειν', transliteration: 'legein', english: 'to say, speak', partOfSpeech: 'verb', correctCount: 18, wrongCount: 3, groupIds: ['verbs', 'common'] },
-  { id: '8', greek: 'ποιεῖν', transliteration: 'poiein', english: 'to make, do', partOfSpeech: 'verb', correctCount: 14, wrongCount: 2, groupIds: ['verbs', 'common'] },
-  { id: '9', greek: 'γιγνώσκειν', transliteration: 'gignōskein', english: 'to know', partOfSpeech: 'verb', correctCount: 10, wrongCount: 5, groupIds: ['verbs', 'philosophy'] },
-  { id: '10', greek: 'ἔχειν', transliteration: 'echein', english: 'to have, hold', partOfSpeech: 'verb', correctCount: 22, wrongCount: 1, groupIds: ['verbs', 'common'] },
-  { id: '11', greek: 'καλός', transliteration: 'kalos', english: 'beautiful, noble', partOfSpeech: 'adjective', correctCount: 16, wrongCount: 2, groupIds: ['common', 'philosophy'] },
-  { id: '12', greek: 'ἀγαθός', transliteration: 'agathos', english: 'good', partOfSpeech: 'adjective', correctCount: 19, wrongCount: 1, groupIds: ['common', 'philosophy'] },
-  { id: '13', greek: 'μέγας', transliteration: 'megas', english: 'great, large', partOfSpeech: 'adjective', correctCount: 12, wrongCount: 3, groupIds: ['common', 'homer'] },
-  { id: '14', greek: 'πολύς', transliteration: 'polys', english: 'much, many', partOfSpeech: 'adjective', correctCount: 11, wrongCount: 4, groupIds: ['common'] },
-  { id: '15', greek: 'μῆνις', transliteration: 'mēnis', english: 'wrath, anger', partOfSpeech: 'noun', correctCount: 5, wrongCount: 2, groupIds: ['homer'] },
-  { id: '16', greek: 'θεός', transliteration: 'theos', english: 'god', partOfSpeech: 'noun', correctCount: 21, wrongCount: 0, groupIds: ['common', 'homer'] },
-  { id: '17', greek: 'ἄνθρωπος', transliteration: 'anthrōpos', english: 'human being, person', partOfSpeech: 'noun', correctCount: 17, wrongCount: 2, groupIds: ['common', 'philosophy'] },
-  { id: '18', greek: 'πόλις', transliteration: 'polis', english: 'city, city-state', partOfSpeech: 'noun', correctCount: 13, wrongCount: 1, groupIds: ['common', 'philosophy'] },
-  { id: '19', greek: 'οἶκος', transliteration: 'oikos', english: 'house, household', partOfSpeech: 'noun', correctCount: 9, wrongCount: 3, groupIds: ['common'] },
-  { id: '20', greek: 'βασιλεύς', transliteration: 'basileus', english: 'king', partOfSpeech: 'noun', correctCount: 14, wrongCount: 2, groupIds: ['common', 'homer'] },
-];
-
-export const sessions: Session[] = [
-  { id: '1', activityId: 'flashcard', activityName: 'Flashcards', groupId: 'philosophy', groupName: 'Philosophy Terms', startTime: new Date('2024-01-15T10:00:00'), endTime: new Date('2024-01-15T10:25:00'), correctCount: 12, wrongCount: 3 },
-  { id: '2', activityId: 'quiz', activityName: 'Multiple Choice', groupId: 'common', groupName: 'Common Words', startTime: new Date('2024-01-14T14:30:00'), endTime: new Date('2024-01-14T14:50:00'), correctCount: 18, wrongCount: 2 },
-  { id: '3', activityId: 'typing', activityName: 'Typing Practice', groupId: 'verbs', groupName: 'Essential Verbs', startTime: new Date('2024-01-13T09:00:00'), endTime: new Date('2024-01-13T09:35:00'), correctCount: 15, wrongCount: 5 },
-  { id: '4', activityId: 'flashcard', activityName: 'Flashcards', groupId: 'homer', groupName: 'Homeric Greek', startTime: new Date('2024-01-12T16:00:00'), endTime: new Date('2024-01-12T16:20:00'), correctCount: 8, wrongCount: 4 },
-  { id: '5', activityId: 'quiz', activityName: 'Multiple Choice', groupId: null, groupName: null, startTime: new Date('2024-01-11T11:00:00'), endTime: new Date('2024-01-11T11:30:00'), correctCount: 20, wrongCount: 5 },
+  { id: '1', greek: 'λόγος', transliteration: 'logos', english: 'word, reason, speech', partOfSpeech: 'noun', groupIds: ['philosophy', 'common'], correctCount: 0, wrongCount: 0 },
+  { id: '2', greek: 'ψυχή', transliteration: 'psychē', english: 'soul, spirit, life', partOfSpeech: 'noun', groupIds: ['philosophy'], correctCount: 0, wrongCount: 0 },
+  { id: '3', greek: 'ἀρετή', transliteration: 'aretē', english: 'virtue, excellence', partOfSpeech: 'noun', groupIds: ['philosophy'], correctCount: 0, wrongCount: 0 },
+  { id: '4', greek: 'σοφία', transliteration: 'sophia', english: 'wisdom', partOfSpeech: 'noun', groupIds: ['philosophy', 'common'], correctCount: 0, wrongCount: 0 },
+  { id: '5', greek: 'ἀλήθεια', transliteration: 'alētheia', english: 'truth', partOfSpeech: 'noun', groupIds: ['philosophy'], correctCount: 0, wrongCount: 0 },
+  { id: '6', greek: 'εἶναι', transliteration: 'einai', english: 'to be', partOfSpeech: 'verb', groupIds: ['verbs', 'common'], correctCount: 0, wrongCount: 0 },
+  { id: '7', greek: 'λέγειν', transliteration: 'legein', english: 'to say, speak', partOfSpeech: 'verb', groupIds: ['verbs', 'common'], correctCount: 0, wrongCount: 0 },
+  { id: '8', greek: 'ποιεῖν', transliteration: 'poiein', english: 'to make, do', partOfSpeech: 'verb', groupIds: ['verbs', 'common'], correctCount: 0, wrongCount: 0 },
+  { id: '9', greek: 'γιγνώσκειν', transliteration: 'gignōskein', english: 'to know', partOfSpeech: 'verb', groupIds: ['verbs', 'philosophy'], correctCount: 0, wrongCount: 0 },
+  { id: '10', greek: 'ἔχειν', transliteration: 'echein', english: 'to have, hold', partOfSpeech: 'verb', groupIds: ['verbs', 'common'], correctCount: 0, wrongCount: 0 },
+  { id: '11', greek: 'καλός', transliteration: 'kalos', english: 'beautiful, noble', partOfSpeech: 'adjective', groupIds: ['common', 'philosophy'], correctCount: 0, wrongCount: 0 },
+  { id: '12', greek: 'ἀγαθός', transliteration: 'agathos', english: 'good', partOfSpeech: 'adjective', groupIds: ['common', 'philosophy'], correctCount: 0, wrongCount: 0 },
+  { id: '13', greek: 'μέγας', transliteration: 'megas', english: 'great, large', partOfSpeech: 'adjective', groupIds: ['common', 'homer'], correctCount: 0, wrongCount: 0 },
+  { id: '14', greek: 'πολύς', transliteration: 'polys', english: 'much, many', partOfSpeech: 'adjective', groupIds: ['common'], correctCount: 0, wrongCount: 0 },
+  { id: '15', greek: 'μῆνις', transliteration: 'mēnis', english: 'wrath, anger', partOfSpeech: 'noun', groupIds: ['homer'], correctCount: 0, wrongCount: 0 },
+  { id: '16', greek: 'θεός', transliteration: 'theos', english: 'god', partOfSpeech: 'noun', groupIds: ['common', 'homer'], correctCount: 0, wrongCount: 0 },
+  { id: '17', greek: 'ἄνθρωπος', transliteration: 'anthrōpos', english: 'human being, person', partOfSpeech: 'noun', groupIds: ['common', 'philosophy'], correctCount: 0, wrongCount: 0 },
+  { id: '18', greek: 'πόλις', transliteration: 'polis', english: 'city, city-state', partOfSpeech: 'noun', groupIds: ['common', 'philosophy'], correctCount: 0, wrongCount: 0 },
+  { id: '19', greek: 'οἶκος', transliteration: 'oikos', english: 'house, household', partOfSpeech: 'noun', groupIds: ['common'], correctCount: 0, wrongCount: 0 },
+  { id: '20', greek: 'βασιλεύς', transliteration: 'basileus', english: 'king', partOfSpeech: 'noun', groupIds: ['common', 'homer'], correctCount: 0, wrongCount: 0 },
+  { id: '21', greek: 'εἷς', transliteration: 'heis', english: 'one', partOfSpeech: 'adjective', groupIds: ['numbers'], correctCount: 0, wrongCount: 0 },
+  { id: '22', greek: 'δύο', transliteration: 'duo', english: 'two', partOfSpeech: 'adjective', groupIds: ['numbers'], correctCount: 0, wrongCount: 0 },
+  { id: '23', greek: 'τρεῖς', transliteration: 'treis', english: 'three', partOfSpeech: 'adjective', groupIds: ['numbers'], correctCount: 0, wrongCount: 0 },
+  { id: '24', greek: 'ἥλιος', transliteration: 'hēlios', english: 'sun', partOfSpeech: 'noun', groupIds: ['nature', 'homer'], correctCount: 0, wrongCount: 0 },
+  { id: '25', greek: 'σελήνη', transliteration: 'selēnē', english: 'moon', partOfSpeech: 'noun', groupIds: ['nature'], correctCount: 0, wrongCount: 0 },
+  { id: '26', greek: 'ὕδωρ', transliteration: 'hydōr', english: 'water', partOfSpeech: 'noun', groupIds: ['nature', 'philosophy'], correctCount: 0, wrongCount: 0 },
+  { id: '27', greek: 'πῦρ', transliteration: 'pyr', english: 'fire', partOfSpeech: 'noun', groupIds: ['nature', 'philosophy'], correctCount: 0, wrongCount: 0 },
+  { id: '28', greek: 'γῆ', transliteration: 'gē', english: 'earth, land', partOfSpeech: 'noun', groupIds: ['nature', 'common'], correctCount: 0, wrongCount: 0 },
+  { id: '29', greek: 'θάλασσα', transliteration: 'thalassa', english: 'sea', partOfSpeech: 'noun', groupIds: ['nature', 'homer'], correctCount: 0, wrongCount: 0 },
+  { id: '30', greek: 'οὐρανός', transliteration: 'ouranos', english: 'sky, heaven', partOfSpeech: 'noun', groupIds: ['nature', 'homer'], correctCount: 0, wrongCount: 0 },
 ];
 
 export function getWordsByGroup(groupId: string): Word[] {

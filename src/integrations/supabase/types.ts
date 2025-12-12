@@ -14,7 +14,96 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      study_sessions: {
+        Row: {
+          activity_name: string
+          activity_type: string
+          completed_at: string | null
+          correct_count: number
+          group_id: string | null
+          group_name: string | null
+          id: string
+          started_at: string
+          user_id: string
+          wrong_count: number
+        }
+        Insert: {
+          activity_name: string
+          activity_type: string
+          completed_at?: string | null
+          correct_count?: number
+          group_id?: string | null
+          group_name?: string | null
+          id?: string
+          started_at?: string
+          user_id: string
+          wrong_count?: number
+        }
+        Update: {
+          activity_name?: string
+          activity_type?: string
+          completed_at?: string | null
+          correct_count?: number
+          group_id?: string | null
+          group_name?: string | null
+          id?: string
+          started_at?: string
+          user_id?: string
+          wrong_count?: number
+        }
+        Relationships: []
+      }
+      word_progress: {
+        Row: {
+          correct_count: number
+          id: string
+          last_reviewed_at: string | null
+          user_id: string
+          word_id: string
+          wrong_count: number
+        }
+        Insert: {
+          correct_count?: number
+          id?: string
+          last_reviewed_at?: string | null
+          user_id: string
+          word_id: string
+          wrong_count?: number
+        }
+        Update: {
+          correct_count?: number
+          id?: string
+          last_reviewed_at?: string | null
+          user_id?: string
+          word_id?: string
+          wrong_count?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
