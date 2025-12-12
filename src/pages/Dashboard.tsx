@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
 import { Link } from 'react-router-dom';
 import { 
@@ -10,30 +11,66 @@ import {
   ArrowRight,
   Layers,
   CircleDot,
-  Keyboard
+  Keyboard,
+  Link2,
+  Headphones,
+  PenTool
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { words, sessions, studyActivities, wordGroups } from '@/lib/mockData';
+import { words, studyActivities, wordGroups } from '@/lib/mockData';
+import { getUserSessions, getUserStats, getUserWordProgress, StudySession } from '@/lib/studyService';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function Dashboard() {
-  const totalWords = words.length;
-  const totalCorrect = words.reduce((sum, w) => sum + w.correctCount, 0);
-  const totalWrong = words.reduce((sum, w) => sum + w.wrongCount, 0);
-  const accuracy = totalCorrect + totalWrong > 0 
-    ? Math.round((totalCorrect / (totalCorrect + totalWrong)) * 100) 
-    : 0;
+  const { profile } = useAuth();
+  const [stats, setStats] = useState({ totalSessions: 0, totalCorrect: 0, totalWrong: 0, accuracy: 0 });
+  const [lastSession, setLastSession] = useState<StudySession | null>(null);
+  const [wordProgress, setWordProgress] = useState<{ mastered: number }>({ mastered: 0 });
+  const [loading, setLoading] = useState(true);
 
-  const lastSession = sessions[0];
+  useEffect(() => {
+    const fetchData = async () => {
+      const [statsData, sessions, progress] = await Promise.all([
+        getUserStats(),
+        getUserSessions(),
+        getUserWordProgress()
+      ]);
+      
+      setStats(statsData);
+      setLastSession(sessions.find(s => s.completed_at) || null);
+      
+      // Count mastered words (10+ correct, 2 or fewer wrong)
+      const masteredCount = progress.filter(p => p.correct_count >= 10 && p.wrong_count <= 2).length;
+      setWordProgress({ mastered: masteredCount });
+      
+      setLoading(false);
+    };
+    fetchData();
+  }, []);
+
+  const totalWords = words.length;
 
   const getActivityIcon = (type: string) => {
     switch (type) {
       case 'flashcard': return Layers;
       case 'quiz': return CircleDot;
       case 'typing': return Keyboard;
+      case 'matching': return Link2;
+      case 'listening': return Headphones;
+      case 'spelling': return PenTool;
       default: return BookOpen;
     }
   };
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return { greek: 'καλημέρα!', english: 'Good morning' };
+    if (hour < 18) return { greek: 'χαῖρε!', english: 'Hello' };
+    return { greek: 'καλησπέρα!', english: 'Good evening' };
+  };
+
+  const greeting = getGreeting();
 
   return (
     <Layout breadcrumbs={[{ name: 'Dashboard' }]}>
@@ -41,7 +78,10 @@ export default function Dashboard() {
         {/* Header */}
         <div>
           <h1 className="font-display text-4xl font-bold text-foreground">
-            καλημέρα! <span className="text-muted-foreground font-sans text-2xl font-normal">Good morning!</span>
+            {greeting.greek}{' '}
+            <span className="text-muted-foreground font-sans text-2xl font-normal">
+              {greeting.english}, {profile?.username || 'Scholar'}!
+            </span>
           </h1>
           <p className="mt-2 text-muted-foreground">Continue your journey through Ancient Greek.</p>
         </div>
@@ -66,7 +106,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-foreground">
-                {words.filter(w => w.correctCount >= 10 && w.wrongCount <= 2).length}
+                {loading ? '-' : wordProgress.mastered}
               </div>
               <p className="text-xs text-muted-foreground">words mastered</p>
             </CardContent>
@@ -78,7 +118,9 @@ export default function Dashboard() {
               <TrendingUp className="h-5 w-5 text-accent" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-foreground">{accuracy}%</div>
+              <div className="text-3xl font-bold text-foreground">
+                {loading ? '-' : `${stats.accuracy}%`}
+              </div>
               <p className="text-xs text-muted-foreground">overall accuracy</p>
             </CardContent>
           </Card>
@@ -89,7 +131,9 @@ export default function Dashboard() {
               <History className="h-5 w-5 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-foreground">{sessions.length}</div>
+              <div className="text-3xl font-bold text-foreground">
+                {loading ? '-' : stats.totalSessions}
+              </div>
               <p className="text-xs text-muted-foreground">study sessions</p>
             </CardContent>
           </Card>
@@ -107,20 +151,22 @@ export default function Dashboard() {
               <CardDescription>Your most recent study activity</CardDescription>
             </CardHeader>
             <CardContent>
-              {lastSession ? (
+              {loading ? (
+                <p className="text-muted-foreground">Loading...</p>
+              ) : lastSession ? (
                 <div className="space-y-4">
                   <div className="rounded-lg bg-muted/50 p-4">
-                    <p className="font-medium text-foreground">{lastSession.activityName}</p>
+                    <p className="font-medium text-foreground">{lastSession.activity_name}</p>
                     <p className="text-sm text-muted-foreground">
-                      {lastSession.groupName || 'All words'}
+                      {lastSession.group_name || 'All words'}
                     </p>
                     <p className="mt-2 text-xs text-muted-foreground">
-                      {lastSession.startTime.toLocaleDateString()}
+                      {new Date(lastSession.started_at).toLocaleDateString()}
                     </p>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-success">✓ {lastSession.correctCount} correct</span>
-                    <span className="text-destructive">✗ {lastSession.wrongCount} wrong</span>
+                    <span className="text-success">✓ {lastSession.correct_count} correct</span>
+                    <span className="text-destructive">✗ {lastSession.wrong_count} wrong</span>
                   </div>
                   <Link to="/sessions">
                     <Button variant="outline" className="w-full">
@@ -130,7 +176,12 @@ export default function Dashboard() {
                   </Link>
                 </div>
               ) : (
-                <p className="text-muted-foreground">No sessions yet. Start studying!</p>
+                <div className="text-center py-4">
+                  <p className="text-muted-foreground mb-4">No sessions yet. Start studying!</p>
+                  <Link to="/activities">
+                    <Button>Start Learning</Button>
+                  </Link>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -146,7 +197,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-3 sm:grid-cols-3">
-                {studyActivities.map((activity) => {
+                {studyActivities.slice(0, 6).map((activity) => {
                   const Icon = getActivityIcon(activity.type);
                   return (
                     <Link 
@@ -186,8 +237,8 @@ export default function Dashboard() {
             </Link>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {wordGroups.map((group) => (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {wordGroups.slice(0, 6).map((group) => (
                 <Link key={group.id} to={`/groups/${group.id}`}>
                   <div className="rounded-lg border border-border bg-muted/30 p-4 transition-all hover:border-primary hover:bg-muted/50">
                     <h4 className="font-medium text-foreground">{group.name}</h4>

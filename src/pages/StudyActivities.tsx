@@ -1,6 +1,6 @@
 import Layout from '@/components/Layout';
 import { Link } from 'react-router-dom';
-import { Layers, CircleDot, Keyboard, BookOpen, Play, Eye } from 'lucide-react';
+import { Layers, CircleDot, Keyboard, BookOpen, Play, Eye, Link2, Headphones, PenTool } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { studyActivities } from '@/lib/mockData';
@@ -11,6 +11,9 @@ export default function StudyActivities() {
       case 'flashcard': return Layers;
       case 'quiz': return CircleDot;
       case 'typing': return Keyboard;
+      case 'matching': return Link2;
+      case 'listening': return Headphones;
+      case 'spelling': return PenTool;
       default: return BookOpen;
     }
   };
@@ -42,11 +45,6 @@ export default function StudyActivities() {
                       <Button className="w-full gap-2">
                         <Play className="h-4 w-4" />
                         Launch
-                      </Button>
-                    </Link>
-                    <Link to={`/activities/${activity.id}/details`}>
-                      <Button variant="outline" size="icon">
-                        <Eye className="h-4 w-4" />
                       </Button>
                     </Link>
                   </div>

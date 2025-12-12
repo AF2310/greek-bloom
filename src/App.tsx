@@ -3,7 +3,10 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import StudyActivities from "./pages/StudyActivities";
 import ActivityPlayer from "./pages/ActivityPlayer";
@@ -24,29 +27,80 @@ const queryClient = new QueryClient({
   },
 });
 
+function AuthRedirect({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  
+  if (loading) return null;
+  if (user) return <Navigate to="/dashboard" replace />;
+  
+  return <>{children}</>;
+}
+
 const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/activities" element={<StudyActivities />} />
-            <Route path="/activities/:activityId" element={<ActivityPlayer />} />
-            <Route path="/activities/:activityId/:groupId" element={<ActivityPlayer />} />
-            <Route path="/words" element={<Words />} />
-            <Route path="/groups" element={<Groups />} />
-            <Route path="/groups/:groupId" element={<GroupDetail />} />
-            <Route path="/sessions" element={<Sessions />} />
-            <Route path="/settings" element={<Settings />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/auth" element={
+                <AuthRedirect>
+                  <Auth />
+                </AuthRedirect>
+              } />
+              <Route path="/dashboard" element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/activities" element={
+                <ProtectedRoute>
+                  <StudyActivities />
+                </ProtectedRoute>
+              } />
+              <Route path="/activities/:activityId" element={
+                <ProtectedRoute>
+                  <ActivityPlayer />
+                </ProtectedRoute>
+              } />
+              <Route path="/activities/:activityId/:groupId" element={
+                <ProtectedRoute>
+                  <ActivityPlayer />
+                </ProtectedRoute>
+              } />
+              <Route path="/words" element={
+                <ProtectedRoute>
+                  <Words />
+                </ProtectedRoute>
+              } />
+              <Route path="/groups" element={
+                <ProtectedRoute>
+                  <Groups />
+                </ProtectedRoute>
+              } />
+              <Route path="/groups/:groupId" element={
+                <ProtectedRoute>
+                  <GroupDetail />
+                </ProtectedRoute>
+              } />
+              <Route path="/sessions" element={
+                <ProtectedRoute>
+                  <Sessions />
+                </ProtectedRoute>
+              } />
+              <Route path="/settings" element={
+                <ProtectedRoute>
+                  <Settings />
+                </ProtectedRoute>
+              } />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </AuthProvider>
     </QueryClientProvider>
   </ErrorBoundary>
 );

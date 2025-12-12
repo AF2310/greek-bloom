@@ -4,16 +4,17 @@ import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { words, getActivityById, wordGroups } from '@/lib/mockData';
+import { words, getActivityById, wordGroups, Word } from '@/lib/mockData';
+import { createSession, completeSession, updateWordProgress } from '@/lib/studyService';
 import { sanitizeInput } from '@/lib/security';
-import { ArrowLeft, RotateCcw, Check, X, ArrowRight, Trophy } from 'lucide-react';
+import { ArrowLeft, RotateCcw, Check, X, ArrowRight, Trophy, Shuffle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface ActivityWord {
-  id: string;
+interface MatchPair {
   greek: string;
-  transliteration: string;
   english: string;
+  id: string;
+  matched: boolean;
 }
 
 export default function ActivityPlayer() {
@@ -21,6 +22,7 @@ export default function ActivityPlayer() {
   const navigate = useNavigate();
   const activity = getActivityById(activityId || '');
 
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [score, setScore] = useState({ correct: 0, wrong: 0 });
   const [isComplete, setIsComplete] = useState(false);
@@ -28,22 +30,74 @@ export default function ActivityPlayer() {
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [typedAnswer, setTypedAnswer] = useState('');
   const [showResult, setShowResult] = useState(false);
-  const [activityWords, setActivityWords] = useState<ActivityWord[]>([]);
+  const [activityWords, setActivityWords] = useState<Word[]>([]);
+  const [quizOptions, setQuizOptions] = useState<string[]>([]);
+  
+  // Matching game state
+  const [matchPairs, setMatchPairs] = useState<MatchPair[]>([]);
+  const [selectedGreek, setSelectedGreek] = useState<string | null>(null);
+  const [selectedEnglish, setSelectedEnglish] = useState<string | null>(null);
+  const [matchedPairs, setMatchedPairs] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    let filteredWords = groupId 
-      ? words.filter(w => w.groupIds.includes(groupId))
-      : words;
-    
-    // Shuffle words
-    const shuffled = [...filteredWords].sort(() => Math.random() - 0.5).slice(0, 10);
-    setActivityWords(shuffled);
-  }, [groupId]);
+    const initSession = async () => {
+      if (!activity) return;
+      
+      let filteredWords = groupId 
+        ? words.filter(w => w.groupIds.includes(groupId))
+        : words;
+      
+      const shuffled = [...filteredWords].sort(() => Math.random() - 0.5).slice(0, 10);
+      setActivityWords(shuffled);
+
+      // Initialize matching pairs if matching activity
+      if (activity.type === 'matching') {
+        const pairs = shuffled.slice(0, 6).map(w => ({
+          greek: w.greek,
+          english: w.english,
+          id: w.id,
+          matched: false
+        }));
+        setMatchPairs(pairs);
+      }
+
+      const group = groupId ? wordGroups.find(g => g.id === groupId) : null;
+      const sid = await createSession(
+        activity.type,
+        activity.name,
+        groupId,
+        group?.name
+      );
+      setSessionId(sid);
+    };
+
+    initSession();
+  }, [activity, groupId]);
 
   const currentWord = activityWords[currentIndex];
   const progress = activityWords.length > 0 
     ? ((currentIndex + (isComplete ? 1 : 0)) / activityWords.length) * 100 
     : 0;
+
+  // Generate quiz options when current word changes
+  useEffect(() => {
+    if (currentWord && activity?.type === 'quiz') {
+      const wrongOptions = words
+        .filter(w => w.id !== currentWord.id)
+        .sort(() => Math.random() - 0.5)
+        .slice(0, 3)
+        .map(w => w.english);
+      
+      setQuizOptions([...wrongOptions, currentWord.english].sort(() => Math.random() - 0.5));
+    }
+  }, [currentWord, activity?.type]);
+
+  const handleComplete = useCallback(async () => {
+    if (sessionId) {
+      await completeSession(sessionId, score.correct, score.wrong);
+    }
+    setIsComplete(true);
+  }, [sessionId, score]);
 
   const handleNext = useCallback(() => {
     if (currentIndex < activityWords.length - 1) {
@@ -53,46 +107,77 @@ export default function ActivityPlayer() {
       setTypedAnswer('');
       setShowResult(false);
     } else {
-      setIsComplete(true);
+      handleComplete();
     }
-  }, [currentIndex, activityWords.length]);
+  }, [currentIndex, activityWords.length, handleComplete]);
 
-  const handleAnswer = (isCorrect: boolean) => {
+  const handleAnswer = async (isCorrect: boolean, wordId: string) => {
     if (isCorrect) {
       setScore(prev => ({ ...prev, correct: prev.correct + 1 }));
     } else {
       setScore(prev => ({ ...prev, wrong: prev.wrong + 1 }));
     }
+    await updateWordProgress(wordId, isCorrect);
     setShowResult(true);
     setTimeout(handleNext, 1500);
   };
 
   const handleQuizAnswer = (answer: string) => {
+    if (showResult || !currentWord) return;
     setSelectedAnswer(answer);
-    const isCorrect = answer === currentWord?.english;
-    handleAnswer(isCorrect);
+    const isCorrect = answer === currentWord.english;
+    handleAnswer(isCorrect, currentWord.id);
   };
 
   const handleTypingSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const sanitized = sanitizeInput(typedAnswer.trim().toLowerCase());
-    const isCorrect = sanitized === currentWord?.greek.toLowerCase() || 
-                      sanitized === currentWord?.transliteration.toLowerCase();
-    handleAnswer(isCorrect);
-  };
-
-  const getQuizOptions = () => {
-    if (!currentWord) return [];
-    const wrongOptions = words
-      .filter(w => w.id !== currentWord.id)
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 3)
-      .map(w => w.english);
+    if (!currentWord || showResult) return;
     
-    return [...wrongOptions, currentWord.english].sort(() => Math.random() - 0.5);
+    const sanitized = sanitizeInput(typedAnswer.trim().toLowerCase());
+    const isCorrect = sanitized === currentWord.greek.toLowerCase() || 
+                      sanitized === currentWord.transliteration.toLowerCase();
+    handleAnswer(isCorrect, currentWord.id);
   };
 
-  const handleRestart = () => {
+  const handleMatchSelect = (type: 'greek' | 'english', value: string, wordId: string) => {
+    if (matchedPairs.has(wordId)) return;
+
+    if (type === 'greek') {
+      setSelectedGreek(selectedGreek === value ? null : value);
+    } else {
+      setSelectedEnglish(selectedEnglish === value ? null : value);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedGreek && selectedEnglish) {
+      const greekWord = matchPairs.find(p => p.greek === selectedGreek);
+      const englishWord = matchPairs.find(p => p.english === selectedEnglish);
+      
+      if (greekWord && englishWord && greekWord.id === englishWord.id) {
+        // Match!
+        setMatchedPairs(prev => new Set([...prev, greekWord.id]));
+        setScore(prev => ({ ...prev, correct: prev.correct + 1 }));
+        updateWordProgress(greekWord.id, true);
+      } else if (greekWord && englishWord) {
+        // Wrong match
+        setScore(prev => ({ ...prev, wrong: prev.wrong + 1 }));
+      }
+      
+      setTimeout(() => {
+        setSelectedGreek(null);
+        setSelectedEnglish(null);
+      }, 500);
+    }
+  }, [selectedGreek, selectedEnglish, matchPairs]);
+
+  useEffect(() => {
+    if (matchPairs.length > 0 && matchedPairs.size === matchPairs.length) {
+      handleComplete();
+    }
+  }, [matchedPairs, matchPairs.length, handleComplete]);
+
+  const handleRestart = async () => {
     setCurrentIndex(0);
     setScore({ correct: 0, wrong: 0 });
     setIsComplete(false);
@@ -100,7 +185,31 @@ export default function ActivityPlayer() {
     setSelectedAnswer(null);
     setTypedAnswer('');
     setShowResult(false);
-    setActivityWords([...activityWords].sort(() => Math.random() - 0.5));
+    setMatchedPairs(new Set());
+    setSelectedGreek(null);
+    setSelectedEnglish(null);
+    
+    const shuffled = [...activityWords].sort(() => Math.random() - 0.5);
+    setActivityWords(shuffled);
+    
+    if (activity?.type === 'matching') {
+      const pairs = shuffled.slice(0, 6).map(w => ({
+        greek: w.greek,
+        english: w.english,
+        id: w.id,
+        matched: false
+      }));
+      setMatchPairs(pairs);
+    }
+
+    const group = groupId ? wordGroups.find(g => g.id === groupId) : null;
+    const sid = await createSession(
+      activity?.type || '',
+      activity?.name || '',
+      groupId,
+      group?.name
+    );
+    setSessionId(sid);
   };
 
   if (!activity) {
@@ -126,7 +235,9 @@ export default function ActivityPlayer() {
   }
 
   if (isComplete) {
-    const accuracy = Math.round((score.correct / activityWords.length) * 100);
+    const total = score.correct + score.wrong;
+    const accuracy = total > 0 ? Math.round((score.correct / total) * 100) : 0;
+    
     return (
       <Layout breadcrumbs={breadcrumbs}>
         <div className="max-w-lg mx-auto animate-scale-in">
@@ -175,11 +286,84 @@ export default function ActivityPlayer() {
     );
   }
 
-  if (!currentWord || activityWords.length === 0) {
+  if (activityWords.length === 0) {
     return (
       <Layout breadcrumbs={breadcrumbs}>
         <div className="text-center py-12">
           <p className="text-muted-foreground">Loading words...</p>
+        </div>
+      </Layout>
+    );
+  }
+
+  // Matching Game UI
+  if (activity.type === 'matching') {
+    const shuffledGreek = [...matchPairs].sort(() => Math.random() - 0.5);
+    const shuffledEnglish = [...matchPairs].sort(() => Math.random() - 0.5);
+
+    return (
+      <Layout breadcrumbs={breadcrumbs}>
+        <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm text-muted-foreground">
+              <span>{matchedPairs.size} of {matchPairs.length} matched</span>
+              <span className="flex items-center gap-4">
+                <span className="text-success">✓ {score.correct}</span>
+                <span className="text-destructive">✗ {score.wrong}</span>
+              </span>
+            </div>
+            <Progress value={(matchedPairs.size / matchPairs.length) * 100} className="h-2" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-8">
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium text-muted-foreground text-center">Greek</h3>
+              {shuffledGreek.map((pair) => (
+                <Button
+                  key={`greek-${pair.id}`}
+                  variant={matchedPairs.has(pair.id) ? 'default' : 'outline'}
+                  className={cn(
+                    "w-full h-auto py-4 text-lg font-display greek-text",
+                    matchedPairs.has(pair.id) && "bg-success hover:bg-success",
+                    selectedGreek === pair.greek && !matchedPairs.has(pair.id) && "ring-2 ring-primary"
+                  )}
+                  onClick={() => handleMatchSelect('greek', pair.greek, pair.id)}
+                  disabled={matchedPairs.has(pair.id)}
+                >
+                  {pair.greek}
+                </Button>
+              ))}
+            </div>
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium text-muted-foreground text-center">English</h3>
+              {shuffledEnglish.map((pair) => (
+                <Button
+                  key={`english-${pair.id}`}
+                  variant={matchedPairs.has(pair.id) ? 'default' : 'outline'}
+                  className={cn(
+                    "w-full h-auto py-4",
+                    matchedPairs.has(pair.id) && "bg-success hover:bg-success",
+                    selectedEnglish === pair.english && !matchedPairs.has(pair.id) && "ring-2 ring-primary"
+                  )}
+                  onClick={() => handleMatchSelect('english', pair.english, pair.id)}
+                  disabled={matchedPairs.has(pair.id)}
+                >
+                  {pair.english}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  // Standard activities (flashcard, quiz, typing, spelling)
+  if (!currentWord) {
+    return (
+      <Layout breadcrumbs={breadcrumbs}>
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">Loading...</p>
         </div>
       </Layout>
     );
@@ -200,7 +384,7 @@ export default function ActivityPlayer() {
           <Progress value={progress} className="h-2" />
         </div>
 
-        {/* Activity Content */}
+        {/* Flashcard Activity */}
         {activity.type === 'flashcard' && (
           <Card 
             className={cn(
@@ -230,7 +414,7 @@ export default function ActivityPlayer() {
                       variant="outline" 
                       size="lg"
                       className="gap-2 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                      onClick={(e) => { e.stopPropagation(); handleAnswer(false); }}
+                      onClick={(e) => { e.stopPropagation(); handleAnswer(false, currentWord.id); }}
                     >
                       <X className="h-5 w-5" />
                       Didn't Know
@@ -238,7 +422,7 @@ export default function ActivityPlayer() {
                     <Button 
                       size="lg"
                       className="gap-2 bg-success hover:bg-success/90 text-success-foreground"
-                      onClick={(e) => { e.stopPropagation(); handleAnswer(true); }}
+                      onClick={(e) => { e.stopPropagation(); handleAnswer(true, currentWord.id); }}
                     >
                       <Check className="h-5 w-5" />
                       Knew It
@@ -250,6 +434,7 @@ export default function ActivityPlayer() {
           </Card>
         )}
 
+        {/* Quiz Activity */}
         {activity.type === 'quiz' && (
           <Card className="min-h-[300px]">
             <CardContent className="py-8">
@@ -261,7 +446,7 @@ export default function ActivityPlayer() {
               </div>
 
               <div className="grid gap-3">
-                {getQuizOptions().map((option, index) => (
+                {quizOptions.map((option, index) => (
                   <Button
                     key={index}
                     variant="outline"
@@ -270,7 +455,7 @@ export default function ActivityPlayer() {
                       showResult && option === currentWord.english && "border-success bg-success/10",
                       showResult && selectedAnswer === option && option !== currentWord.english && "border-destructive bg-destructive/10"
                     )}
-                    onClick={() => !showResult && handleQuizAnswer(option)}
+                    onClick={() => handleQuizAnswer(option)}
                     disabled={showResult}
                   >
                     {option}
@@ -281,14 +466,26 @@ export default function ActivityPlayer() {
           </Card>
         )}
 
-        {activity.type === 'typing' && (
+        {/* Typing Activity */}
+        {(activity.type === 'typing' || activity.type === 'spelling') && (
           <Card className="min-h-[300px]">
             <CardContent className="py-8">
               <div className="text-center mb-8">
-                <p className="text-2xl font-semibold text-foreground mb-2">
-                  {currentWord.english}
-                </p>
-                <p className="text-sm text-muted-foreground">Type the Greek word or transliteration</p>
+                {activity.type === 'typing' ? (
+                  <>
+                    <p className="text-2xl font-semibold text-foreground mb-2">
+                      {currentWord.english}
+                    </p>
+                    <p className="text-sm text-muted-foreground">Type the Greek word or transliteration</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-2xl font-semibold text-foreground mb-2">
+                      {currentWord.transliteration}
+                    </p>
+                    <p className="text-sm text-muted-foreground">Type the Greek spelling</p>
+                  </>
+                )}
               </div>
 
               <form onSubmit={handleTypingSubmit} className="space-y-4">
@@ -327,6 +524,40 @@ export default function ActivityPlayer() {
                   </Button>
                 )}
               </form>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Listening Activity - Simulated */}
+        {activity.type === 'listening' && (
+          <Card className="min-h-[300px]">
+            <CardContent className="py-8">
+              <div className="text-center mb-8">
+                <p className="text-lg text-muted-foreground mb-4">Listen and identify:</p>
+                <p className="font-display text-4xl font-bold text-foreground greek-text mb-2">
+                  {currentWord.greek}
+                </p>
+                <p className="text-muted-foreground italic">{currentWord.transliteration}</p>
+                <p className="text-sm text-muted-foreground mt-4">(Audio coming soon - select the correct meaning)</p>
+              </div>
+
+              <div className="grid gap-3">
+                {quizOptions.map((option, index) => (
+                  <Button
+                    key={index}
+                    variant="outline"
+                    className={cn(
+                      "h-auto py-4 text-left justify-start text-base",
+                      showResult && option === currentWord.english && "border-success bg-success/10",
+                      showResult && selectedAnswer === option && option !== currentWord.english && "border-destructive bg-destructive/10"
+                    )}
+                    onClick={() => handleQuizAnswer(option)}
+                    disabled={showResult}
+                  >
+                    {option}
+                  </Button>
+                ))}
+              </div>
             </CardContent>
           </Card>
         )}
