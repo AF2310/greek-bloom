@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, getRememberedUsername } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { GraduationCap, Loader2 } from 'lucide-react';
@@ -12,15 +13,14 @@ import { z } from 'zod';
 
 const signUpSchema = z.object({
   username: z.string()
-    .min(3, 'Username must be at least 3 characters')
-    .max(20, 'Username must be less than 20 characters')
-    .regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores'),
-  email: z.string().email('Please enter a valid email address'),
+    .min(3, 'Name must be at least 3 characters')
+    .max(20, 'Name must be less than 20 characters')
+    .regex(/^[a-zA-Z0-9_]+$/, 'Name can only contain letters, numbers, and underscores'),
   password: z.string().min(6, 'Password must be at least 6 characters')
 });
 
 const signInSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
+  username: z.string().min(1, 'Name is required'),
   password: z.string().min(1, 'Password is required')
 });
 
@@ -30,9 +30,17 @@ export default function Auth() {
   const { toast } = useToast();
   
   const [isLoading, setIsLoading] = useState(false);
-  const [signUpForm, setSignUpForm] = useState({ username: '', email: '', password: '' });
-  const [signInForm, setSignInForm] = useState({ email: '', password: '' });
+  const [signUpForm, setSignUpForm] = useState({ username: '', password: '', rememberMe: false });
+  const [signInForm, setSignInForm] = useState({ username: '', password: '', rememberMe: true });
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Load remembered username on mount
+  useEffect(() => {
+    const rememberedUsername = getRememberedUsername();
+    if (rememberedUsername) {
+      setSignInForm(prev => ({ ...prev, username: rememberedUsername, rememberMe: true }));
+    }
+  }, []);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,7 +59,7 @@ export default function Auth() {
     }
 
     setIsLoading(true);
-    const { error } = await signUp(signUpForm.email, signUpForm.password, signUpForm.username);
+    const { error } = await signUp(signUpForm.username, signUpForm.password, signUpForm.rememberMe);
     setIsLoading(false);
 
     if (error) {
@@ -87,17 +95,13 @@ export default function Auth() {
     }
 
     setIsLoading(true);
-    const { error } = await signIn(signInForm.email, signInForm.password);
+    const { error } = await signIn(signInForm.username, signInForm.password, signInForm.rememberMe);
     setIsLoading(false);
 
     if (error) {
-      let message = error.message;
-      if (error.message.includes('Invalid login credentials')) {
-        message = 'Invalid email or password. Please try again.';
-      }
       toast({
         title: 'Sign in failed',
-        description: message,
+        description: error.message,
         variant: 'destructive'
       });
       return;
@@ -134,16 +138,17 @@ export default function Auth() {
               <TabsContent value="signin">
                 <form onSubmit={handleSignIn} className="space-y-4 mt-4">
                   <div className="space-y-2">
-                    <Label htmlFor="signin-email">Email</Label>
+                    <Label htmlFor="signin-username">Name</Label>
                     <Input
-                      id="signin-email"
-                      type="email"
-                      placeholder="you@example.com"
-                      value={signInForm.email}
-                      onChange={(e) => setSignInForm(prev => ({ ...prev, email: e.target.value }))}
+                      id="signin-username"
+                      type="text"
+                      placeholder="Enter your name"
+                      value={signInForm.username}
+                      onChange={(e) => setSignInForm(prev => ({ ...prev, username: e.target.value }))}
                       disabled={isLoading}
+                      autoComplete="username"
                     />
-                    {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
+                    {errors.username && <p className="text-xs text-destructive">{errors.username}</p>}
                   </div>
 
                   <div className="space-y-2">
@@ -155,8 +160,20 @@ export default function Auth() {
                       value={signInForm.password}
                       onChange={(e) => setSignInForm(prev => ({ ...prev, password: e.target.value }))}
                       disabled={isLoading}
+                      autoComplete="current-password"
                     />
                     {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="signin-remember" 
+                      checked={signInForm.rememberMe}
+                      onCheckedChange={(checked) => setSignInForm(prev => ({ ...prev, rememberMe: !!checked }))}
+                    />
+                    <Label htmlFor="signin-remember" className="text-sm font-normal cursor-pointer">
+                      Remember me
+                    </Label>
                   </div>
 
                   <Button type="submit" className="w-full" disabled={isLoading}>
@@ -170,7 +187,7 @@ export default function Auth() {
                 <form onSubmit={handleSignUp} className="space-y-4 mt-4">
                   <div className="space-y-2">
                     <Label htmlFor="signup-username">
-                      Username <span className="text-destructive">*</span>
+                      Choose a Name <span className="text-destructive">*</span>
                     </Label>
                     <Input
                       id="signup-username"
@@ -179,24 +196,12 @@ export default function Auth() {
                       value={signUpForm.username}
                       onChange={(e) => setSignUpForm(prev => ({ ...prev, username: e.target.value }))}
                       disabled={isLoading}
+                      autoComplete="username"
                     />
                     {errors.username && <p className="text-xs text-destructive">{errors.username}</p>}
                     <p className="text-xs text-muted-foreground">
-                      This will be your unique display name. Cannot be changed.
+                      This will be your unique display name. Must be unique.
                     </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email</Label>
-                    <Input
-                      id="signup-email"
-                      type="email"
-                      placeholder="you@example.com"
-                      value={signUpForm.email}
-                      onChange={(e) => setSignUpForm(prev => ({ ...prev, email: e.target.value }))}
-                      disabled={isLoading}
-                    />
-                    {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
                   </div>
 
                   <div className="space-y-2">
@@ -208,8 +213,20 @@ export default function Auth() {
                       value={signUpForm.password}
                       onChange={(e) => setSignUpForm(prev => ({ ...prev, password: e.target.value }))}
                       disabled={isLoading}
+                      autoComplete="new-password"
                     />
                     {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="signup-remember" 
+                      checked={signUpForm.rememberMe}
+                      onCheckedChange={(checked) => setSignUpForm(prev => ({ ...prev, rememberMe: !!checked }))}
+                    />
+                    <Label htmlFor="signup-remember" className="text-sm font-normal cursor-pointer">
+                      Remember me
+                    </Label>
                   </div>
 
                   <Button type="submit" className="w-full" disabled={isLoading}>

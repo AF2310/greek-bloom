@@ -14,13 +14,16 @@ interface AuthContextType {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
-  signUp: (email: string, password: string, username: string) => Promise<{ error: Error | null }>;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signUp: (username: string, password: string, rememberMe: boolean) => Promise<{ error: Error | null }>;
+  signIn: (username: string, password: string, rememberMe: boolean) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   checkUsernameAvailable: (username: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
+
+// Generate a consistent email from username for internal use
+const usernameToEmail = (username: string) => `${username.toLowerCase().trim()}@hellenika.local`;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -41,6 +44,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    // Check for remembered session
+    const remembered = localStorage.getItem('hellenika_remember');
+    
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -82,26 +88,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return !data && !error;
   };
 
-  const signUp = async (email: string, password: string, username: string) => {
-    const trimmedUsername = username.trim();
+  const signUp = async (username: string, password: string, rememberMe: boolean) => {
+    const trimmedUsername = username.trim().toLowerCase();
     
     // Check if username is available
     const isAvailable = await checkUsernameAvailable(trimmedUsername);
     if (!isAvailable) {
-      return { error: new Error('This username is already taken. Please choose another.') };
+      return { error: new Error('This name is already taken. Please choose another.') };
     }
 
-    const redirectUrl = `${window.location.origin}/`;
+    // Use username to generate internal email
+    const internalEmail = usernameToEmail(trimmedUsername);
     
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: internalEmail,
       password,
-      options: {
-        emailRedirectTo: redirectUrl
-      }
     });
 
     if (error) {
+      if (error.message.includes('already registered')) {
+        return { error: new Error('This name is already taken. Please choose another.') };
+      }
       return { error };
     }
 
@@ -111,30 +118,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .from('profiles')
         .insert({
           user_id: data.user.id,
-          username: trimmedUsername.toLowerCase()
+          username: trimmedUsername
         });
 
       if (profileError) {
-        // If profile creation fails, the signup was still successful
-        // but we should inform about the profile issue
         console.error('Profile creation error:', profileError);
-        return { error: new Error('Account created but profile setup failed. Please try logging in.') };
+        return { error: new Error('Account created but profile setup failed. Please try signing in.') };
+      }
+
+      // Handle remember me
+      if (rememberMe) {
+        localStorage.setItem('hellenika_remember', 'true');
+        localStorage.setItem('hellenika_username', trimmedUsername);
+      } else {
+        localStorage.removeItem('hellenika_remember');
+        localStorage.removeItem('hellenika_username');
       }
     }
 
     return { error: null };
   };
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (username: string, password: string, rememberMe: boolean) => {
+    const trimmedUsername = username.trim().toLowerCase();
+    const internalEmail = usernameToEmail(trimmedUsername);
+
     const { error } = await supabase.auth.signInWithPassword({
-      email,
+      email: internalEmail,
       password
     });
 
-    return { error };
+    if (error) {
+      if (error.message.includes('Invalid login credentials')) {
+        return { error: new Error('Invalid name or password. Please try again.') };
+      }
+      return { error };
+    }
+
+    // Handle remember me
+    if (rememberMe) {
+      localStorage.setItem('hellenika_remember', 'true');
+      localStorage.setItem('hellenika_username', trimmedUsername);
+    } else {
+      localStorage.removeItem('hellenika_remember');
+      localStorage.removeItem('hellenika_username');
+    }
+
+    return { error: null };
   };
 
   const signOut = async () => {
+    localStorage.removeItem('hellenika_remember');
+    localStorage.removeItem('hellenika_username');
     await supabase.auth.signOut();
     setProfile(null);
   };
@@ -161,4 +196,11 @@ export function useAuth() {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
+}
+
+export function getRememberedUsername(): string | null {
+  if (localStorage.getItem('hellenika_remember') === 'true') {
+    return localStorage.getItem('hellenika_username');
+  }
+  return null;
 }
