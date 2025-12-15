@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth, getRememberedUsername } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { GraduationCap, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
+import { createRateLimiter } from '@/lib/security';
 
 const signUpSchema = z.object({
   username: z.string()
@@ -29,10 +30,14 @@ export default function Auth() {
   const { signUp, signIn } = useAuth();
   const { toast } = useToast();
   
+  // Rate limiter: max 5 attempts per 60 seconds
+  const loginRateLimiter = useMemo(() => createRateLimiter(5, 60000), []);
+  
   const [isLoading, setIsLoading] = useState(false);
   const [signUpForm, setSignUpForm] = useState({ username: '', password: '', rememberMe: false });
   const [signInForm, setSignInForm] = useState({ username: '', password: '', rememberMe: true });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [rateLimitedUntil, setRateLimitedUntil] = useState<number | null>(null);
 
   // Load remembered username on mount
   useEffect(() => {
@@ -82,6 +87,18 @@ export default function Auth() {
     e.preventDefault();
     setErrors({});
     
+    // Check rate limit
+    if (!loginRateLimiter()) {
+      const waitTime = 60;
+      setRateLimitedUntil(Date.now() + waitTime * 1000);
+      toast({
+        title: 'Too many attempts',
+        description: `Please wait ${waitTime} seconds before trying again.`,
+        variant: 'destructive'
+      });
+      return;
+    }
+    
     const result = signInSchema.safeParse(signInForm);
     if (!result.success) {
       const fieldErrors: Record<string, string> = {};
@@ -109,6 +126,19 @@ export default function Auth() {
 
     navigate('/dashboard');
   };
+  
+  // Clear rate limit when time expires
+  useEffect(() => {
+    if (rateLimitedUntil && Date.now() >= rateLimitedUntil) {
+      setRateLimitedUntil(null);
+    }
+    const interval = setInterval(() => {
+      if (rateLimitedUntil && Date.now() >= rateLimitedUntil) {
+        setRateLimitedUntil(null);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [rateLimitedUntil]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -176,9 +206,9 @@ export default function Auth() {
                     </Label>
                   </div>
 
-                  <Button type="submit" className="w-full" disabled={isLoading}>
+                  <Button type="submit" className="w-full" disabled={isLoading || !!rateLimitedUntil}>
                     {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Sign In
+                    {rateLimitedUntil ? 'Please wait...' : 'Sign In'}
                   </Button>
                 </form>
               </TabsContent>
