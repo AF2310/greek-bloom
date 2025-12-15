@@ -2,7 +2,7 @@
 
 Acient greek learning up made using prompts and lovable
 
-**URL**:
+**URL**: https://kotoba-explorer.lovable.app
 
 
 
