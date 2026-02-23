@@ -1,6 +1,6 @@
 # Welcome to your Lovable project
 
-Acient greek learning up made using prompts and lovable
+Acient greek learning web app made using prompts and lovable
 
 **URL**: https://kotoba-explorer.lovable.app
 
